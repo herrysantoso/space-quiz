@@ -368,6 +368,69 @@
     }
 
     .result-screen .primary-button { width: 100%; }
+
+    .result-screen .review-button { margin-bottom: 10px; }
+
+    .answer-review { text-align: left; }
+
+    .review-back-button { margin-bottom: 25px; }
+
+    .review-title {
+      margin-bottom: 8px;
+      font-size: clamp(24px, 6vw, 30px);
+      letter-spacing: -.035em;
+    }
+
+    .review-intro { margin-bottom: 22px; color: var(--muted); }
+
+    .review-list {
+      display: grid;
+      gap: 12px;
+      margin: 0;
+      padding: 0;
+      list-style: none;
+    }
+
+    .review-item {
+      padding: 17px;
+      border: 1px solid var(--line);
+      border-radius: 15px;
+      background: var(--surface-raised);
+    }
+
+    .review-heading {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 10px;
+      margin-bottom: 8px;
+    }
+
+    .review-heading h3 {
+      margin: 0;
+      color: var(--muted);
+      font-size: 12px;
+      letter-spacing: .06em;
+      text-transform: uppercase;
+    }
+
+    .review-status {
+      flex: 0 0 auto;
+      padding: 3px 8px;
+      border-radius: 999px;
+      font-size: 12px;
+      font-weight: 750;
+    }
+
+    .review-status.correct { color: var(--success); background: var(--success-soft); }
+    .review-status.incorrect { color: var(--error); background: var(--error-soft); }
+
+    .review-prompt { margin-bottom: 12px; font-weight: 700; }
+    .review-answer, .review-fact { margin-bottom: 7px; }
+    .review-answer strong, .review-correct strong, .review-fact strong { color: var(--ink); }
+    .review-correct { margin-bottom: 12px; }
+    .review-fact { color: var(--muted); }
+
     [hidden] { display: none !important; }
 
     @keyframes arrive {
@@ -444,13 +507,22 @@
       </div>
 
       <div class="result-screen" id="result-screen" hidden>
-        <div class="result-emoji" id="result-emoji" aria-hidden="true">🚀</div>
-        <div class="eyebrow">Mission complete</div>
-        <h1 id="result-title">Stellar work!</h1>
-        <p class="result-copy" id="result-copy"></p>
-        <div class="result-score"><strong id="final-score">0</strong><span id="final-total">out of 0</span></div>
-        <p class="personal-best" id="personal-best" aria-live="polite">Personal best: <strong>First attempt</strong></p>
-        <button class="primary-button" id="restart-button" type="button">Play again <span aria-hidden="true">↻</span></button>
+        <div id="results-summary">
+          <div class="result-emoji" id="result-emoji" aria-hidden="true">🚀</div>
+          <div class="eyebrow">Mission complete</div>
+          <h1 id="result-title">Stellar work!</h1>
+          <p class="result-copy" id="result-copy"></p>
+          <div class="result-score"><strong id="final-score">0</strong><span id="final-total">out of 0</span></div>
+          <p class="personal-best" id="personal-best" aria-live="polite">Personal best: <strong>First attempt</strong></p>
+          <button class="primary-button review-button" id="review-button" type="button">Review answers <span aria-hidden="true">↓</span></button>
+          <button class="primary-button" id="restart-button" type="button">Play again <span aria-hidden="true">↻</span></button>
+        </div>
+        <section class="answer-review" id="answer-review" aria-labelledby="review-title" hidden>
+          <button class="primary-button review-back-button" id="review-back-button" type="button">← Back to results</button>
+          <h2 class="review-title" id="review-title" tabindex="-1">Answer review</h2>
+          <p class="review-intro">See what you chose, the correct answer, and a fact for each question.</p>
+          <ol class="review-list" id="review-list"></ol>
+        </section>
       </div>
     </section>
   </main>
@@ -546,6 +618,7 @@
     let questionIndex = 0;
     let score = 0;
     let answered = false;
+    let selectedAnswers = [];
     let personalBest = null;
 
     function getPersonalBest() {
@@ -597,6 +670,7 @@
       questionIndex = 0;
       score = 0;
       answered = false;
+      selectedAnswers = [];
       scoreElement.textContent = "0";
       progress.setAttribute("aria-valuemax", activeQuestions.length);
       progress.setAttribute("aria-valuenow", "0");
@@ -631,6 +705,7 @@
       if (answered) return;
       answered = true;
       const question = activeQuestions[questionIndex];
+      selectedAnswers[questionIndex] = selectedIndex;
       const buttons = [...optionsElement.querySelectorAll(".option")];
       buttons.forEach((button) => { button.disabled = true; });
 
@@ -665,6 +740,8 @@
     function showResults() {
       quizScreen.hidden = true;
       resultScreen.hidden = false;
+      document.querySelector("#results-summary").hidden = false;
+      document.querySelector("#answer-review").hidden = true;
       document.querySelector("#final-score").textContent = score;
       document.querySelector("#final-total").textContent = `out of ${activeQuestions.length}`;
       const wasFirstCompletedAttempt = personalBest === null;
@@ -689,6 +766,62 @@
       document.querySelector("#result-copy").textContent = result[2];
       document.querySelector("#restart-button").focus();
     }
+
+    function renderAnswerReview() {
+      const reviewList = document.querySelector("#review-list");
+      reviewList.replaceChildren();
+
+      activeQuestions.forEach((question, index) => {
+        const selectedAnswer = selectedAnswers[index];
+        const isCorrect = selectedAnswer === question.answer;
+        const item = document.createElement("li");
+        item.className = "review-item";
+
+        const heading = document.createElement("div");
+        heading.className = "review-heading";
+        const questionNumber = document.createElement("h3");
+        questionNumber.textContent = `Question ${index + 1}`;
+        const status = document.createElement("span");
+        status.className = `review-status ${isCorrect ? "correct" : "incorrect"}`;
+        status.textContent = isCorrect ? "Correct" : "Incorrect";
+        heading.append(questionNumber, status);
+
+        const prompt = document.createElement("p");
+        prompt.className = "review-prompt";
+        prompt.textContent = question.prompt;
+        const answer = document.createElement("p");
+        answer.className = "review-answer";
+        const answerLabel = document.createElement("strong");
+        answerLabel.textContent = "Your answer: ";
+        answer.append(answerLabel, question.options[selectedAnswer]);
+        const correctAnswer = document.createElement("p");
+        correctAnswer.className = "review-correct";
+        const correctLabel = document.createElement("strong");
+        correctLabel.textContent = "Correct answer: ";
+        correctAnswer.append(correctLabel, question.options[question.answer]);
+        const fact = document.createElement("p");
+        fact.className = "review-fact";
+        const factLabel = document.createElement("strong");
+        factLabel.textContent = "Fact: ";
+        fact.append(factLabel, question.fact);
+
+        item.append(heading, prompt, answer, correctAnswer, fact);
+        reviewList.append(item);
+      });
+    }
+
+    document.querySelector("#review-button").addEventListener("click", () => {
+      renderAnswerReview();
+      document.querySelector("#results-summary").hidden = true;
+      document.querySelector("#answer-review").hidden = false;
+      document.querySelector("#review-title").focus();
+    });
+
+    document.querySelector("#review-back-button").addEventListener("click", () => {
+      document.querySelector("#answer-review").hidden = true;
+      document.querySelector("#results-summary").hidden = false;
+      document.querySelector("#review-button").focus();
+    });
 
     nextButton.addEventListener("click", () => {
       if (questionIndex === activeQuestions.length - 1) {
