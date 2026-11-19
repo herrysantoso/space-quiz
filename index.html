@@ -398,7 +398,7 @@
       <div id="quiz-screen">
         <div class="card-content">
           <div class="topline">
-            <span class="eyebrow" id="question-count">Question 1 of 10</span>
+            <span class="eyebrow" id="question-count">Question 1</span>
             <span class="score-pill" aria-live="polite">★ Score <strong id="score">0</strong></span>
           </div>
           <div
@@ -406,7 +406,7 @@
             role="progressbar"
             aria-label="Quiz progress"
             aria-valuemin="0"
-            aria-valuemax="10"
+            aria-valuemax="0"
             aria-valuenow="0"
             id="progress"
           ><div class="progress-fill" id="progress-fill"></div></div>
@@ -431,7 +431,7 @@
         <div class="eyebrow">Mission complete</div>
         <h1 id="result-title">Stellar work!</h1>
         <p class="result-copy" id="result-copy"></p>
-        <div class="result-score"><strong id="final-score">0</strong><span>out of 10</span></div>
+        <div class="result-score"><strong id="final-score">0</strong><span id="final-total">out of 0</span></div>
         <button class="primary-button" id="restart-button" type="button">Play again <span aria-hidden="true">↻</span></button>
       </div>
     </section>
@@ -525,10 +525,40 @@
     let questionIndex = 0;
     let score = 0;
     let answered = false;
+    let activeQuestions = [];
+
+    function shuffledQuestions() {
+      const shuffled = [...questions];
+
+      for (let index = shuffled.length - 1; index > 0; index -= 1) {
+        const randomIndex = Math.floor(Math.random() * (index + 1));
+        [shuffled[index], shuffled[randomIndex]] = [shuffled[randomIndex], shuffled[index]];
+      }
+
+      return shuffled;
+    }
+
+    function startAttempt(previousQuestions = null) {
+      activeQuestions = shuffledQuestions();
+
+      if (previousQuestions && activeQuestions.length > 1 &&
+          activeQuestions.every((question, index) => question === previousQuestions[index])) {
+        activeQuestions.push(activeQuestions.shift());
+      }
+
+      questionIndex = 0;
+      score = 0;
+      answered = false;
+      scoreElement.textContent = "0";
+      progress.setAttribute("aria-valuemax", activeQuestions.length);
+      progress.setAttribute("aria-valuenow", "0");
+      progressFill.style.width = "0";
+      document.querySelector("#final-total").textContent = `out of ${activeQuestions.length}`;
+    }
 
     function renderQuestion() {
-      const question = questions[questionIndex];
-      questionCount.textContent = `Question ${questionIndex + 1} of ${questions.length}`;
+      const question = activeQuestions[questionIndex];
+      questionCount.textContent = `Question ${questionIndex + 1} of ${activeQuestions.length}`;
       questionTopic.textContent = question.topic;
       questionTitle.textContent = question.prompt;
       optionsElement.replaceChildren();
@@ -552,7 +582,7 @@
     function chooseAnswer(selectedIndex) {
       if (answered) return;
       answered = true;
-      const question = questions[questionIndex];
+      const question = activeQuestions[questionIndex];
       const buttons = [...optionsElement.querySelectorAll(".option")];
       buttons.forEach((button) => { button.disabled = true; });
 
@@ -575,11 +605,11 @@
 
       const completed = questionIndex + 1;
       progress.setAttribute("aria-valuenow", completed);
-      progressFill.style.width = `${(completed / questions.length) * 100}%`;
-      nextButton.textContent = questionIndex === questions.length - 1 ? "See your results" : "Next question";
+      progressFill.style.width = `${(completed / activeQuestions.length) * 100}%`;
+      nextButton.textContent = questionIndex === activeQuestions.length - 1 ? "See your results" : "Next question";
       nextButton.append(document.createElement("span"));
       nextButton.lastElementChild.setAttribute("aria-hidden", "true");
-      nextButton.lastElementChild.textContent = questionIndex === questions.length - 1 ? "✦" : "→";
+      nextButton.lastElementChild.textContent = questionIndex === activeQuestions.length - 1 ? "✦" : "→";
       nextButton.hidden = false;
       nextButton.focus();
     }
@@ -589,11 +619,11 @@
       resultScreen.hidden = false;
       document.querySelector("#final-score").textContent = score;
 
-      const result = score === 10
+      const result = score === activeQuestions.length
         ? ["🌟", "Out of this world!", "Perfect score! You know your way around the cosmos."]
-        : score >= 7
+        : score >= Math.ceil(activeQuestions.length * 0.7)
           ? ["🚀", "Stellar work!", "Your space knowledge is soaring. Keep exploring the universe."]
-          : score >= 4
+          : score >= Math.ceil(activeQuestions.length * 0.4)
             ? ["🪐", "Nice orbit!", "You've got a great start—there's always more to discover."]
             : ["🌙", "Curious explorer!", "Every great mission starts with a question. Ready for another orbit?"];
 
@@ -604,7 +634,7 @@
     }
 
     nextButton.addEventListener("click", () => {
-      if (questionIndex === questions.length - 1) {
+      if (questionIndex === activeQuestions.length - 1) {
         showResults();
       } else {
         questionIndex += 1;
@@ -614,17 +644,15 @@
     });
 
     document.querySelector("#restart-button").addEventListener("click", () => {
-      questionIndex = 0;
-      score = 0;
-      scoreElement.textContent = "0";
-      progress.setAttribute("aria-valuenow", "0");
-      progressFill.style.width = "0";
+      const completedQuestions = activeQuestions;
+      startAttempt(completedQuestions);
       resultScreen.hidden = true;
       quizScreen.hidden = false;
       renderQuestion();
       optionsElement.querySelector("button")?.focus();
     });
 
+    startAttempt();
     renderQuestion();
   </script>
 </body>
