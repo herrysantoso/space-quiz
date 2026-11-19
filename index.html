@@ -350,6 +350,23 @@
 
     .result-score span { color: var(--muted); font-size: 15px; font-weight: 600; letter-spacing: 0; }
 
+    .personal-best {
+      width: fit-content;
+      margin: 0 auto 27px;
+      padding: 8px 12px;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      color: var(--muted);
+      background: var(--surface-raised);
+      font-size: 13px;
+      font-weight: 700;
+    }
+
+    .personal-best strong {
+      color: var(--ink);
+      font-variant-numeric: tabular-nums;
+    }
+
     .result-screen .primary-button { width: 100%; }
     [hidden] { display: none !important; }
 
@@ -432,6 +449,7 @@
         <h1 id="result-title">Stellar work!</h1>
         <p class="result-copy" id="result-copy"></p>
         <div class="result-score"><strong id="final-score">0</strong><span id="final-total">out of 0</span></div>
+        <p class="personal-best" id="personal-best" aria-live="polite">Personal best: <strong>First attempt</strong></p>
         <button class="primary-button" id="restart-button" type="button">Play again <span aria-hidden="true">↻</span></button>
       </div>
     </section>
@@ -522,10 +540,40 @@
     const progressFill = document.querySelector("#progress-fill");
     const feedback = document.querySelector("#feedback");
     const nextButton = document.querySelector("#next-button");
+    const personalBestElement = document.querySelector("#personal-best");
+    const PERSONAL_BEST_KEY = "space-quiz-personal-best";
+    let activeQuestions = [];
     let questionIndex = 0;
     let score = 0;
     let answered = false;
-    let activeQuestions = [];
+    let personalBest = null;
+
+    function getPersonalBest() {
+      try {
+        const storedValue = window.localStorage.getItem(PERSONAL_BEST_KEY);
+        if (storedValue === null) return null;
+
+        const savedScore = Number(storedValue);
+        return Number.isInteger(savedScore) && savedScore >= 0 && savedScore <= questions.length
+          ? savedScore
+          : null;
+      } catch {
+        return null;
+      }
+    }
+
+    function savePersonalBest(scoreToSave) {
+      if (personalBest !== null && scoreToSave <= personalBest) return;
+
+      personalBest = scoreToSave;
+      try {
+        window.localStorage.setItem(PERSONAL_BEST_KEY, String(scoreToSave));
+      } catch {
+        // The current attempt still works when browser storage is unavailable.
+      }
+    }
+
+    personalBest = getPersonalBest();
 
     function shuffledQuestions() {
       const shuffled = [...questions];
@@ -618,6 +666,15 @@
       quizScreen.hidden = true;
       resultScreen.hidden = false;
       document.querySelector("#final-score").textContent = score;
+      document.querySelector("#final-total").textContent = `out of ${activeQuestions.length}`;
+      const wasFirstCompletedAttempt = personalBest === null;
+      savePersonalBest(score);
+
+      if (wasFirstCompletedAttempt) {
+        personalBestElement.innerHTML = `First completed attempt — personal best: <strong>${personalBest} out of ${activeQuestions.length}</strong>`;
+      } else {
+        personalBestElement.innerHTML = `Personal best: <strong>${personalBest} out of ${activeQuestions.length}</strong>`;
+      }
 
       const result = score === activeQuestions.length
         ? ["🌟", "Out of this world!", "Perfect score! You know your way around the cosmos."]
