@@ -350,6 +350,23 @@
 
     .result-score span { color: var(--muted); font-size: 15px; font-weight: 600; letter-spacing: 0; }
 
+    .personal-best {
+      width: fit-content;
+      margin: 0 auto 27px;
+      padding: 8px 12px;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      color: var(--muted);
+      background: var(--surface-raised);
+      font-size: 13px;
+      font-weight: 700;
+    }
+
+    .personal-best strong {
+      color: var(--ink);
+      font-variant-numeric: tabular-nums;
+    }
+
     .result-screen .primary-button { width: 100%; }
     [hidden] { display: none !important; }
 
@@ -398,7 +415,7 @@
       <div id="quiz-screen">
         <div class="card-content">
           <div class="topline">
-            <span class="eyebrow" id="question-count">Question 1 of 10</span>
+            <span class="eyebrow" id="question-count">Question 1</span>
             <span class="score-pill" aria-live="polite">★ Score <strong id="score">0</strong></span>
           </div>
           <div
@@ -406,7 +423,7 @@
             role="progressbar"
             aria-label="Quiz progress"
             aria-valuemin="0"
-            aria-valuemax="10"
+            aria-valuemax="0"
             aria-valuenow="0"
             id="progress"
           ><div class="progress-fill" id="progress-fill"></div></div>
@@ -431,7 +448,8 @@
         <div class="eyebrow">Mission complete</div>
         <h1 id="result-title">Stellar work!</h1>
         <p class="result-copy" id="result-copy"></p>
-        <div class="result-score"><strong id="final-score">0</strong><span>out of 10</span></div>
+        <div class="result-score"><strong id="final-score">0</strong><span id="final-total">out of 0</span></div>
+        <p class="personal-best" id="personal-best" aria-live="polite">Personal best: <strong>First attempt</strong></p>
         <button class="primary-button" id="restart-button" type="button">Play again <span aria-hidden="true">↻</span></button>
       </div>
     </section>
@@ -522,13 +540,44 @@
     const progressFill = document.querySelector("#progress-fill");
     const feedback = document.querySelector("#feedback");
     const nextButton = document.querySelector("#next-button");
+    const personalBestElement = document.querySelector("#personal-best");
+    const PERSONAL_BEST_KEY = "space-quiz-personal-best";
     let questionIndex = 0;
     let score = 0;
     let answered = false;
+    let personalBest = null;
+
+    function getPersonalBest() {
+      try {
+        const storedValue = window.localStorage.getItem(PERSONAL_BEST_KEY);
+        if (storedValue === null) return null;
+
+        const savedScore = Number(storedValue);
+        return Number.isInteger(savedScore) && savedScore >= 0 && savedScore <= questions.length
+          ? savedScore
+          : null;
+      } catch {
+        return null;
+      }
+    }
+
+    function savePersonalBest(scoreToSave) {
+      if (personalBest !== null && scoreToSave <= personalBest) return;
+
+      personalBest = scoreToSave;
+      try {
+        window.localStorage.setItem(PERSONAL_BEST_KEY, String(scoreToSave));
+      } catch {
+        // The current attempt still works when browser storage is unavailable.
+      }
+    }
+
+    personalBest = getPersonalBest();
 
     function renderQuestion() {
       const question = questions[questionIndex];
       questionCount.textContent = `Question ${questionIndex + 1} of ${questions.length}`;
+      progress.setAttribute("aria-valuemax", questions.length);
       questionTopic.textContent = question.topic;
       questionTitle.textContent = question.prompt;
       optionsElement.replaceChildren();
@@ -588,12 +637,21 @@
       quizScreen.hidden = true;
       resultScreen.hidden = false;
       document.querySelector("#final-score").textContent = score;
+      document.querySelector("#final-total").textContent = `out of ${questions.length}`;
+      const wasFirstCompletedAttempt = personalBest === null;
+      savePersonalBest(score);
 
-      const result = score === 10
+      if (wasFirstCompletedAttempt) {
+        personalBestElement.innerHTML = `First completed attempt — personal best: <strong>${personalBest} out of ${questions.length}</strong>`;
+      } else {
+        personalBestElement.innerHTML = `Personal best: <strong>${personalBest} out of ${questions.length}</strong>`;
+      }
+
+      const result = score === questions.length
         ? ["🌟", "Out of this world!", "Perfect score! You know your way around the cosmos."]
-        : score >= 7
+        : score >= Math.ceil(questions.length * 0.7)
           ? ["🚀", "Stellar work!", "Your space knowledge is soaring. Keep exploring the universe."]
-          : score >= 4
+          : score >= Math.ceil(questions.length * 0.4)
             ? ["🪐", "Nice orbit!", "You've got a great start—there's always more to discover."]
             : ["🌙", "Curious explorer!", "Every great mission starts with a question. Ready for another orbit?"];
 
